@@ -1,0 +1,15 @@
+default:
+
+    extensions:
+        Behat\Symfony2Extension:
+            kernel:
+               path:  features/bootstrap/FeatureKernel.php
+               class: FeatureKernel
+               env:   test
+        Behat\MinkExtension:
+            base_url:  'http://alertme.supertanuki.dev/app_test.php'
+            sessions:
+                default:
+                    symfony2: ~
+                javascript:
+                    selenium2: ~
