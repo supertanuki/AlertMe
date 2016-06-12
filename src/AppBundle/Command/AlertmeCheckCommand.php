@@ -31,6 +31,8 @@ class AlertmeCheckCommand extends ContainerAwareCommand
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $this->sendMail('[AlertMe] Starting script', 'Starting script...');
+
         $startingUrl = $this->getContainer()->getParameter('starting_url');
 
         $client = new Client();
@@ -51,19 +53,23 @@ class AlertmeCheckCommand extends ContainerAwareCommand
             /** @var Request $request */
             $request = $client->getRequest();
 
-            if ($startingUrl . '/1' === $request->getUri()) {
+            $step = 1;
+
+            if (($startingUrl . '/' . $step) === $request->getUri()) {
                 $form = $crawler->selectButton('Etape suivante')->form();
 
-                $client->submit($form, ['planning' => '9122']);
+                $crawler = $client->submit($form, ['planning' => '9122']);
                 $request = $client->getRequest();
 
-                if ($startingUrl . '/2' === $request->getUri()) {
+                $step++;
+
+                if (($startingUrl . '/' . $step) === $request->getUri()) {
                     $output->writeln('Nothing found');
                     $durationSleep = rand(self::REQUEST_INTERVAL, self::REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 } else {
                     $message = sprintf('I found this uri: %s', $request->getUri());
                     $output->writeln($message);
-                    $this->sendMail($message);
+                    $this->sendMail('[AlertMe] Found a page!', $message . "\n\n" . $crawler->html());
                     $durationSleep = rand(self::SUCCESS_REQUEST_INTERVAL, self::SUCCESS_REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 }
 
@@ -74,14 +80,15 @@ class AlertmeCheckCommand extends ContainerAwareCommand
     }
 
     /**
+     * @param string $subject
      * @param string $body
      */
-    protected function sendMail($body)
+    protected function sendMail($subject, $body)
     {
         $to = explode(',', $this->getContainer()->getParameter('email_to'));
 
         $message = \Swift_Message::newInstance()
-            ->setSubject('Hello from Alert-me')
+            ->setSubject($subject)
             ->setFrom($this->getContainer()->getParameter('email_from'))
             ->setTo($to)
             ->setBody($body, 'text/plain');
