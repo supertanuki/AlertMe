@@ -12,6 +12,15 @@ class AlertmeCheckCommand extends ContainerAwareCommand
 {
     const USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36';
 
+    /** request interval in seconds */
+    const REQUEST_INTERVAL = 60;
+
+    /** addition for interval in seconds */
+    const REQUEST_INTERVAL_ADDITION = 30;
+
+    /** request interval in seconds in cas of success response */
+    const SUCCESS_REQUEST_INTERVAL = 300;
+
     protected function configure()
     {
         $this
@@ -22,9 +31,6 @@ class AlertmeCheckCommand extends ContainerAwareCommand
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $this->sendMail('hello');
-        return;
-
         $startingUrl = $this->getContainer()->getParameter('starting_url');
 
         $client = new Client();
@@ -51,14 +57,14 @@ class AlertmeCheckCommand extends ContainerAwareCommand
                 $client->submit($form, ['planning' => '9122']);
                 $request = $client->getRequest();
 
-                if ($startingUrl . '/3' === $request->getUri()) {
+                if ($startingUrl . '/2' === $request->getUri()) {
                     $output->writeln('Nothing found');
-                    $durationSleep = rand(1, 5);
+                    $durationSleep = rand(self::REQUEST_INTERVAL, self::REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 } else {
                     $message = sprintf('I found this uri: %s', $request->getUri());
                     $output->writeln($message);
                     $this->sendMail($message);
-                    $durationSleep = rand(30, 50);
+                    $durationSleep = rand(self::SUCCESS_REQUEST_INTERVAL, self::SUCCESS_REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 }
 
                 $output->writeln(sprintf('Sleep for %ss', $durationSleep));
@@ -81,6 +87,6 @@ class AlertmeCheckCommand extends ContainerAwareCommand
             ->setBody($body, 'text/plain');
         ;
 
-        $result = $this->getContainer()->get('mailer')->send($message);
+        $this->getContainer()->get('mailer')->send($message);
     }
 }
