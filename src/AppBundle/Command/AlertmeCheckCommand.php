@@ -31,7 +31,8 @@ class AlertmeCheckCommand extends ContainerAwareCommand
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $this->sendMail('[AlertMe] Starting script', 'Starting script...');
+        $result = $this->sendMail('[AlertMe] Starting script', 'Starting script...');
+        $output->writeln($result);
 
         $startingUrl = $this->getContainer()->getParameter('starting_url');
 
@@ -69,7 +70,10 @@ class AlertmeCheckCommand extends ContainerAwareCommand
                 } else {
                     $message = sprintf('I found this uri: %s', $request->getUri());
                     $output->writeln($message);
-                    $this->sendMail('[AlertMe] Found a page!', $message . "\n\n" . $crawler->html());
+
+                    $result = $this->sendMail('[AlertMe] Found a page!', $message . "\n\n" . $crawler->html());
+                    $output->writeln($result);
+
                     $durationSleep = rand(self::SUCCESS_REQUEST_INTERVAL, self::SUCCESS_REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 }
 
@@ -82,10 +86,13 @@ class AlertmeCheckCommand extends ContainerAwareCommand
     /**
      * @param string $subject
      * @param string $body
+     *
+     * @return string
      */
     protected function sendMail($subject, $body)
     {
-        $to = explode(',', $this->getContainer()->getParameter('email_to'));
+        $emailTo = $this->getContainer()->getParameter('email_to');
+        $to = explode(',', $emailTo);
 
         $message = \Swift_Message::newInstance()
             ->setSubject($subject)
@@ -94,6 +101,13 @@ class AlertmeCheckCommand extends ContainerAwareCommand
             ->setBody($body, 'text/plain');
         ;
 
-        $this->getContainer()->get('mailer')->send($message);
+        /** @var \Swift_Mailer $mailer */
+        $mailer = $this->getContainer()->get('mailer');
+
+        if ($mailer->send($message)) {
+            return sprintf('Mail sent to %s', $emailTo);
+        } else {
+            return sprintf('Impossible to send mail to %s', $emailTo);
+        }
     }
 }
