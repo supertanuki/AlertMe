@@ -2,6 +2,7 @@
 
 namespace AppBundle\Command;
 
+use AppBundle\Sms\FreeMobile;
 use Goutte\Client;
 use Symfony\Bundle\FrameworkBundle\Command\ContainerAwareCommand;
 use Symfony\Component\BrowserKit\Request;
@@ -31,10 +32,15 @@ class AlertmeCheckCommand extends ContainerAwareCommand
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
+        $container = $this->getContainer();
+
+        $sms = new FreeMobile($container->getParameter('free_key'), $container->getParameter('free_user'));
+        //$output->writeln($this->sendSms($sms, "[AlertMe] Starting script..."));
+
         $result = $this->sendMail('[AlertMe] Starting script', 'Starting script...');
         $output->writeln($result);
 
-        $startingUrl = $this->getContainer()->getParameter('starting_url');
+        $startingUrl = $container->getParameter('starting_url');
 
         $client = new Client();
 
@@ -46,7 +52,11 @@ class AlertmeCheckCommand extends ContainerAwareCommand
         $client->setHeader('Connection', 'keep-alive');
         $client->setHeader('User-Agent', self::USER_AGENT);
 
+        $iteration = 0;
+
         while (true) {
+            $iteration++;
+
             $crawler = $client->request('GET', $startingUrl);
             $form    = $crawler->selectButton('Effectuer une demande de rendez-vous')->form();
             $crawler = $client->submit($form, ['condition' => 'on']);
@@ -68,8 +78,11 @@ class AlertmeCheckCommand extends ContainerAwareCommand
                     $output->writeln('Nothing found');
                     $durationSleep = rand(self::REQUEST_INTERVAL, self::REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 } else {
+                    dump($crawler->html());
                     $message = sprintf('I found this uri: %s', $request->getUri());
                     $output->writeln($message);
+
+                    $output->writeln($this->sendSms($sms, "[AlertMe] " . $message));
 
                     $result = $this->sendMail('[AlertMe] Found a page!', $message . "\n\n" . $crawler->html());
                     $output->writeln($result);
@@ -77,9 +90,25 @@ class AlertmeCheckCommand extends ContainerAwareCommand
                     $durationSleep = rand(self::SUCCESS_REQUEST_INTERVAL, self::SUCCESS_REQUEST_INTERVAL + self::REQUEST_INTERVAL_ADDITION);
                 }
 
-                $output->writeln(sprintf('Sleep for %ss', $durationSleep));
+                $output->writeln(sprintf('#%s - Sleep for %ss', $iteration, $durationSleep));
                 sleep($durationSleep);
             }
+        }
+    }
+
+    /**
+     * @param FreeMobile $sms
+     * @param string     $message
+     *
+     * @return string
+     */
+    protected function sendSms(FreeMobile $sms, $message)
+    {
+        try {
+            $sms->send("[AlertMe] Starting script...");
+            return 'Ok';
+        } catch (\Exception $e) {
+            return $e->getCode() . ': ' . $e->getMessage();
         }
     }
 
@@ -91,18 +120,22 @@ class AlertmeCheckCommand extends ContainerAwareCommand
      */
     protected function sendMail($subject, $body)
     {
-        $emailTo = $this->getContainer()->getParameter('email_to');
+        return;
+
+        $container = $this->getContainer();
+
+        $emailTo = $container->getParameter('email_to');
         $to = explode(',', $emailTo);
 
         $message = \Swift_Message::newInstance()
             ->setSubject($subject)
-            ->setFrom($this->getContainer()->getParameter('email_from'))
+            ->setFrom($container->getParameter('email_from'))
             ->setTo($to)
             ->setBody($body, 'text/plain');
         ;
 
         /** @var \Swift_Mailer $mailer */
-        $mailer = $this->getContainer()->get('mailer');
+        $mailer = $container->get('mailer');
 
         if ($mailer->send($message)) {
             return sprintf('Mail sent to %s', $emailTo);

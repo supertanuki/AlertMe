@@ -21,3 +21,6 @@ parameters:
     starting_url: "http://www.example.net"
     email_from: "yo@example.net"
     email_to: "yo1@example.net, yo2@example.net"
+
+    free_user: 111
+    free_key: key
